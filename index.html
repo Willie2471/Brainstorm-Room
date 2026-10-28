@@ -1,0 +1,1632 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Brainstorm Room</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=Kalam:wght@400;700&display=swap">
+<style>
+/* Layout: a fixed toolbar over one large scrolling dotted canvas. Mind map topics and their curved branches
+   sit on a lower layer; draggable sticky notes sit on top. */
+:root {
+  --font-ui: 'Bricolage Grotesque', 'Segoe UI', system-ui, -apple-system, sans-serif;
+  --font-note: 'Kalam', 'Segoe Print', 'Bradley Hand', 'Comic Sans MS', cursive;
+  --bg: #EDF1EC;
+  --board: #F4F7F3;
+  --dot: #C6D1C4;
+  --panel: #FFFFFF;
+  --fg: #18231B;
+  --muted: #566559;
+  --line: #D2DBD0;
+  --accent: #2F6B3B;
+  --accent-fg: #FFFFFF;
+  --focus: #1B5FD6;
+  --toast-bg: #18231B;
+  --toast-fg: #FFFFFF;
+  --toast-link: #A9E3B4;
+  --b0: #C0392B;
+  --b1: #1F6FB2;
+  --b2: #2E8B57;
+  --b3: #C2428B;
+  --b4: #C86A12;
+  --b5: #0F8585;
+  --brand: #21A348;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0F1511; --board: #151C17; --dot: #28352B; --panel: #1B241E; --fg: #E6EEE7;
+    --muted: #9BAB9F; --line: #2C382F; --accent: #7CCB8B; --accent-fg: #0F1511; --focus: #8DB4FF;
+    --toast-bg: #E6EEE7; --toast-fg: #0F1511; --toast-link: #1F5A2B;
+    --b0: #F0786B; --b1: #6AB0F0; --b2: #5FCB8A; --b3: #F08AC0; --b4: #F2A057; --b5: #4FCFCF;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0F1511; --board: #151C17; --dot: #28352B; --panel: #1B241E; --fg: #E6EEE7;
+  --muted: #9BAB9F; --line: #2C382F; --accent: #7CCB8B; --accent-fg: #0F1511; --focus: #8DB4FF;
+  --toast-bg: #E6EEE7; --toast-fg: #0F1511; --toast-link: #1F5A2B;
+  --b0: #F0786B; --b1: #6AB0F0; --b2: #5FCB8A; --b3: #F08AC0; --b4: #F2A057; --b5: #4FCFCF;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font: 400 14px/1.4 var(--font-ui);
+  -webkit-text-size-adjust: 100%;
+}
+[hidden] { display: none !important; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+button, input, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; min-height: 560px; }
+
+/* Toolbar */
+.bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 20px;
+  padding-block: 12px;
+  padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));
+  background: var(--panel); border-bottom: 1px solid var(--line);
+}
+.title { min-width: 0; }
+.title h1 { margin: 0; font: 700 20px/1.1 var(--font-ui); letter-spacing: -0.01em; text-wrap: balance; }
+.title p { margin: 3px 0 0; color: var(--muted); font-size: 12.5px; }
+
+.quick { display: flex; flex: 1 1 420px; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+#quickText {
+  flex: 1 1 240px; min-width: 0; height: 40px; padding: 0 12px;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--bg);
+}
+#quickText::placeholder { color: var(--muted); }
+.swatches { display: flex; align-items: center; gap: 6px; }
+.sw {
+  width: 24px; height: 24px; padding: 0; border-radius: 50%; cursor: pointer;
+  border: 2px solid rgba(0,0,0,.22);
+}
+.sw[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--fg); }
+.swname { min-width: 58px; font-size: 12.5px; color: var(--muted); }
+
+.btn {
+  height: 40px; padding: 0 14px; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--line); border-radius: 8px; background: var(--panel); font-weight: 600; font-size: 13.5px;
+}
+.btn:hover { background: var(--bg); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); }
+.btn.primary:hover { filter: brightness(1.08); background: var(--accent); }
+.btn.small { height: 32px; padding: 0 10px; font-size: 12.5px; }
+.btn.accent { border-color: var(--accent); color: var(--accent); }
+.btn[data-armed] { border-color: #B3261E; color: #B3261E; }
+.tools { display: flex; flex-wrap: wrap; gap: 6px; }
+.tools .sep { width: 1px; background: var(--line); margin: 2px 2px; }
+
+/* Filter row */
+.filters {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px;
+  padding-block: 8px;
+  padding-inline: max(16px, env(safe-area-inset-left, 0px)) max(16px, env(safe-area-inset-right, 0px));
+  background: var(--panel); border-bottom: 1px solid var(--line);
+}
+.filters .lbl { font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  display: inline-flex; align-items: center; gap: 7px; height: 30px; padding: 0 11px 0 9px; cursor: pointer;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--bg); font-size: 13px; font-weight: 500;
+}
+.chip i { width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgba(0,0,0,.3); }
+.chip .cnt { font-weight: 700; font-variant-numeric: tabular-nums; color: var(--muted); }
+.chip[aria-pressed="true"] { border-color: var(--fg); background: var(--panel); box-shadow: inset 0 0 0 1px var(--fg); }
+.meta { margin-left: auto; display: flex; flex-wrap: wrap; gap: 4px 14px; color: var(--muted); font-size: 12.5px; }
+.meta span { font-variant-numeric: tabular-nums; }
+.hint { color: var(--fg); font-weight: 500; }
+.catedit {
+  display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 10px 0 4px;
+  border: 1px solid var(--line); border-radius: 999px; background: var(--bg);
+}
+.catedit input[type="color"] { width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
+.catedit input[type="text"] { width: 100px; height: 26px; border: 0; background: transparent; font-size: 13px; font-weight: 500; }
+.empty {
+  position: absolute; left: 40px; top: 40px; max-width: 360px; padding: 14px 16px; z-index: 0;
+  border: 1px dashed var(--line); border-radius: 10px; background: var(--panel); color: var(--muted);
+  pointer-events: none;
+}
+.empty strong { color: var(--fg); }
+
+/* Board */
+.board { position: relative; flex: 1; min-height: 0; overflow: auto; background: var(--board); overscroll-behavior: contain; }
+.canvas {
+  position: relative; width: max(2800px, 100%); height: max(2400px, 100%);
+  background-image: radial-gradient(var(--dot) 1.3px, transparent 1.5px);
+  background-size: 28px 28px;
+}
+.tidying .note { transition: left .45s ease, top .45s ease, box-shadow .15s, transform .15s, opacity .2s; }
+
+/* Mind map layer */
+.maplayer { position: absolute; inset: 0; z-index: 0; pointer-events: none; }
+.links { position: absolute; left: 0; top: 0; width: 2800px; height: 2400px; overflow: visible; pointer-events: none; }
+.links path { fill: none; stroke-width: 2.5; stroke-linecap: round; opacity: .9; }
+
+.node {
+  position: absolute; z-index: 2; display: block; pointer-events: auto; max-width: 300px;
+  padding: 7px 16px; border: 2px solid var(--bc, var(--fg)); border-radius: 22px;
+  background: var(--panel); color: var(--fg);
+  font: 600 14px/1.25 var(--font-ui);
+  box-shadow: 0 1px 2px rgba(0,0,0,.14);
+  cursor: grab; user-select: none; -webkit-user-select: none; touch-action: none;
+}
+.node.root {
+  background: var(--brand); color: #fff; border-color: var(--brand);
+  font-size: 16px; font-weight: 700; padding: 9px 22px;
+}
+.node.lifting { z-index: 4; cursor: grabbing; box-shadow: 0 14px 22px -10px rgba(0,0,0,.45); }
+.node.drop { box-shadow: 0 0 0 4px var(--focus); }
+.node.editing { cursor: auto; user-select: text; -webkit-user-select: text; touch-action: auto; }
+.grow { display: grid; }
+.rep {
+  grid-area: 1 / 1; visibility: hidden; white-space: pre-wrap; overflow-wrap: anywhere;
+  min-width: 4ch; text-align: center;
+}
+.ntxt {
+  grid-area: 1 / 1; width: 0; min-width: 100%; margin: 0; padding: 0; border: 0; outline: none;
+  resize: none; overflow: hidden; background: transparent; color: inherit;
+  font: inherit; text-align: center; pointer-events: none;
+}
+.node.editing .ntxt { pointer-events: auto; cursor: text; }
+.ntxt::placeholder { color: var(--muted); font-weight: 500; opacity: 1; }
+.node.root .ntxt::placeholder { color: #fff; opacity: .75; }
+
+.nb {
+  position: absolute; display: grid; place-items: center; width: 24px; height: 24px; padding: 0;
+  border: 2px solid var(--bc, var(--fg)); border-radius: 12px; background: var(--panel); color: var(--fg);
+  font: 700 14px/1 var(--font-ui); cursor: pointer; opacity: 0; pointer-events: none; transition: opacity .12s;
+}
+.node:hover .nb, .node:focus-within .nb { opacity: 1; pointer-events: auto; }
+.nb.add { left: 50%; bottom: -14px; transform: translateX(-50%); }
+.nb.fold { right: -13px; top: 50%; margin-top: -12px; min-width: 24px; width: auto; padding: 0 6px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.nb.rm { left: -9px; top: -11px; width: 20px; height: 20px; font-size: 14px; border-color: var(--line); }
+.nb.rm:hover { border-color: #B3261E; color: #B3261E; }
+.node.isCollapsed .nb.fold { opacity: 1; pointer-events: auto; background: var(--bc, var(--fg)); color: var(--panel); }
+.node.root.isCollapsed .nb.fold { color: #fff; }
+
+/* Sticky notes */
+.note {
+  position: absolute; width: 220px; height: 210px; display: flex; flex-direction: column;
+  background: var(--note); color: #2A2616;
+  border-radius: 2px 2px 8px 2px;
+  box-shadow: 0 1px 1px rgba(0,0,0,.18), 0 10px 16px -8px rgba(0,0,0,.35);
+  transform: rotate(var(--rot, 0deg));
+  transition: box-shadow .15s, transform .15s, opacity .2s;
+}
+.note.lifting { transform: rotate(0deg) scale(1.03); box-shadow: 0 2px 2px rgba(0,0,0,.18), 0 22px 28px -12px rgba(0,0,0,.45); }
+.note.dim { opacity: .22; }
+.note.pop { animation: pop .3s ease-out; }
+@keyframes pop { from { transform: rotate(var(--rot, 0deg)) scale(.85); opacity: 0; } to { transform: rotate(var(--rot, 0deg)) scale(1); opacity: 1; } }
+.note:focus-within { outline: 2px solid var(--focus); outline-offset: 1px; }
+.grip {
+  display: flex; align-items: center; gap: 6px; padding: 4px 4px 4px 10px; min-height: 30px;
+  background: rgba(0,0,0,.07); cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none;
+}
+.note.lifting .grip { cursor: grabbing; }
+.grip .cat { flex: 1; font: 700 11px/1 var(--font-ui); letter-spacing: .08em; text-transform: uppercase; opacity: .75; }
+.del {
+  width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; background: transparent; cursor: pointer;
+  font-size: 20px; line-height: 1; color: #2A2616; opacity: .65;
+}
+.del:hover { background: rgba(0,0,0,.12); opacity: 1; }
+.txt {
+  flex: 1; min-height: 0; width: 100%; resize: none; border: 0; background: transparent; outline: none;
+  padding: 8px 12px 4px; font: 400 17px/1.3 var(--font-note); color: #2A2616;
+}
+.txt::placeholder { color: rgba(42,38,22,.5); }
+.colors { display: flex; gap: 7px; padding: 4px 12px 10px; }
+.colors button { width: 16px; height: 16px; padding: 0; border-radius: 50%; cursor: pointer; border: 2px solid rgba(0,0,0,.25); }
+.colors button[aria-pressed="true"] { border-color: #2A2616; box-shadow: 0 0 0 1px rgba(255,255,255,.7); }
+
+/* Toast */
+.toast {
+  position: fixed; left: 50%; transform: translateX(-50%);
+  bottom: calc(18px + env(safe-area-inset-bottom, 0px)); z-index: 99999;
+  display: flex; align-items: center; gap: 14px; max-width: calc(100% - 32px);
+  padding: 10px 16px; border-radius: 10px; background: var(--toast-bg); color: var(--toast-fg);
+  box-shadow: 0 8px 24px rgba(0,0,0,.3); font-weight: 500;
+}
+.toast button { border: 0; background: transparent; color: var(--toast-link); font-weight: 700; cursor: pointer; padding: 4px 2px; }
+
+@media (max-width: 640px) {
+  .meta { margin-left: 0; }
+  .swname { display: none; }
+  .quick .btn.primary { flex: 1 1 auto; }
+  .tools .sep { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .note, .tidying .note { transition: none; }
+  .note.pop { animation: none; }
+  .nb { transition: none; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="bar">
+    <div class="title">
+      <h1>Brainstorm Room</h1>
+      <p>WS Lawn Care Services &middot; sticky notes and mind maps</p>
+    </div>
+    <form class="quick" id="quick" autocomplete="off">
+      <label class="sr" for="quickText">New note</label>
+      <input id="quickText" type="text" maxlength="600" placeholder="Type a thought and press Enter">
+      <div class="swatches" id="swatches" role="group" aria-label="Category for new notes"></div>
+      <span class="swname" id="swatchName" aria-live="polite"></span>
+      <button class="btn primary" type="submit">Add note</button>
+    </form>
+    <div class="tools">
+      <button class="btn small accent" type="button" id="mapBtn" title="Start a new mind map with a central topic">New mind map</button>
+      <button class="btn small" type="button" id="arrangeBtn" title="Neatly lay out every mind map, side by side">Arrange maps</button>
+      <span class="sep" aria-hidden="true"></span>
+      <button class="btn small" type="button" id="tidyBtn" title="Line the sticky notes up in columns by category">Group notes</button>
+      <button class="btn small" type="button" id="copyBtn" title="Copy everything as a plain list">Copy as list</button>
+      <button class="btn small" type="button" id="exportBtn" title="Download a backup file">Backup</button>
+      <button class="btn small" type="button" id="importBtn" title="Add items from a backup file">Restore</button>
+      <button class="btn small" type="button" id="clearBtn">Clear board</button>
+      <input type="file" id="fileIn" accept=".json,application/json" hidden>
+    </div>
+  </header>
+
+  <div class="filters">
+    <span class="lbl" id="filterLbl">Show notes</span>
+    <div class="chips" id="chips" role="group" aria-labelledby="filterLbl"></div>
+    <div class="chips" id="catEdit" hidden></div>
+    <button class="btn small" type="button" id="catEditBtn" title="Rename or recolor the note categories">Edit labels</button>
+    <div class="meta">
+      <span class="hint" id="hint" hidden>Tab adds a branch &middot; Enter adds a sibling &middot; Esc when done</span>
+      <span id="total"></span>
+      <span id="status" role="status"></span>
+      <button class="btn small" type="button" id="syncBtn" hidden title="Check for changes from other devices now">Sync now</button>
+    </div>
+  </div>
+
+  <main class="board" id="board">
+    <div class="canvas" id="canvas">
+      <div class="empty" id="empty" hidden><strong>Nothing here yet.</strong> Type a thought above and press Enter, or start a mind map. Double-click anywhere on the board to drop a note there.</div>
+      <div class="maplayer" id="maplayer">
+        <svg class="links" id="links" width="2800" height="2400" aria-hidden="true"></svg>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---- Shared board settings ----------------------------------------------------
+  // Paste your Apps Script web app URL (and the same key you put in Code.gs) between
+  // the quotes to share this board across every device. Leave SYNC_URL empty and the
+  // board stays on the device you are using.
+  var SYNC_URL = 'https://script.google.com/macros/s/AKfycbwuYLQdo2fXqCcoVCAg5eMkpBsWbmrE6sls7Uo1ajXQ4rBxF6TQo997wLG8W49XqELi/exec';
+  var SYNC_KEY = 'wslc-b029354f820bec335a23';
+  var CONFIG = window.BRAINSTORM_CONFIG || {};
+  if (CONFIG.syncUrl !== undefined) { SYNC_URL = CONFIG.syncUrl; SYNC_KEY = CONFIG.syncKey || ''; }
+  var POLL_MS = CONFIG.pollMs || 15000;
+  var SYNC_ON = !!SYNC_URL;
+
+  var CATS = [
+    { id: 'idea',     label: 'Idea',     color: '#FFE27A' },
+    { id: 'action',   label: 'Action',   color: '#FFB27A' },
+    { id: 'question', label: 'Question', color: '#9ED3F2' },
+    { id: 'customer', label: 'Customer', color: '#F4B5CB' },
+    { id: 'money',    label: 'Money',    color: '#B7E08F' }
+  ];
+  var KEY = 'ws-brainstorm-room-v1';
+  var NOTE_W = 220, NOTE_H = 210, CANVAS_W = 2800, CANVAS_H = 2400;
+  var HG = 28, VG = 64, BRANCH_COLORS = 6;
+  var SVGNS = 'http://www.w3.org/2000/svg';
+
+  var $ = function (s) { return document.querySelector(s); };
+  var board = $('#board'), canvas = $('#canvas'), maplayer = $('#maplayer'), linksSvg = $('#links');
+  var quick = $('#quick'), quickText = $('#quickText');
+  var swatchBox = $('#swatches'), swatchName = $('#swatchName'), chipBox = $('#chips');
+  var statusEl = $('#status'), totalEl = $('#total'), toastEl = $('#toast'), hintEl = $('#hint');
+  var clearBtn = $('#clearBtn'), fileIn = $('#fileIn');
+  var catEditBox = $('#catEdit'), catEditBtn = $('#catEditBtn'), syncBtn = $('#syncBtn'), emptyEl = $('#empty');
+  var editingCats = false;
+  var inflight = false, again = false, syncT = null, loadedOnce = !SYNC_ON;
+
+  var storageOK = true;
+  var els = new Map();       // sticky note elements
+  var nodeEls = new Map();   // mind map topic elements
+  var linkEls = new Map();   // mind map connector paths
+  var filter = new Set();
+  var activeCat = 'idea';
+  var seq = 0;
+
+  function uid() { return Date.now().toString(36) + (seq++).toString(36) + Math.random().toString(36).slice(2, 5); }
+  function num(v, d) { return typeof v === 'number' && isFinite(v) ? v : d; }
+  function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+  function catById(id) { return CATS.filter(function (c) { return c.id === id; })[0] || CATS[0]; }
+  function rot(id) {
+    var h = 0;
+    for (var i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) | 0;
+    return (Math.abs(h) % 31) / 10 - 1.5;
+  }
+
+  function cleanNote(n) {
+    if (!n || typeof n !== 'object') return null;
+    return {
+      id: String(n.id || uid()),
+      text: String(n.text || '').slice(0, 600),
+      cat: CATS.some(function (c) { return c.id === n.cat; }) ? n.cat : 'idea',
+      x: clamp(num(n.x, 40), 0, CANVAS_W - NOTE_W),
+      y: clamp(num(n.y, 40), 0, CANVAS_H - NOTE_H),
+      z: num(n.z, 0)
+    };
+  }
+  function cleanNode(n) {
+    if (!n || typeof n !== 'object') return null;
+    var o = {
+      id: String(n.id || uid()),
+      text: String(n.text || '').replace(/\s*\n\s*/g, ' ').slice(0, 200),
+      p: n.p ? String(n.p) : null,
+      x: clamp(num(n.x, 40), 0, CANVAS_W - 100),
+      y: clamp(num(n.y, 40), 0, CANVAS_H - 60),
+      col: !!n.col
+    };
+    if (typeof n.c === 'number') o.c = clamp(Math.round(n.c), 0, BRANCH_COLORS - 1);
+    return o;
+  }
+  // Drop links to topics that don't exist and break any loops.
+  function repairNodes(list) {
+    var ids = {};
+    list.forEach(function (n) { ids[n.id] = n; });
+    list.forEach(function (n) {
+      if (n.p && !ids[n.p]) n.p = null;
+      var seen = {}, cur = n;
+      while (cur && cur.p) {
+        if (seen[cur.id]) { cur.p = null; break; }
+        seen[cur.id] = 1;
+        cur = ids[cur.p];
+      }
+    });
+    return list;
+  }
+
+  function seedNotes() {
+    var s = [
+      ['idea', 'Example: Fall aeration + overseed add-on for current mowing customers', 40, 560],
+      ['question', 'Example: Which routes can we tighten up to save drive time?', 300, 590],
+      ['action', 'Example: Send a thank-you text to this week’s new customers', 560, 550],
+      ['money', 'Example: Fertilizer program pricing per 1,000 sq ft', 170, 820],
+      ['customer', 'Example: Customers keep asking about weed control. Follow up with quotes.', 430, 840]
+    ];
+    return s.map(function (r, i) { return { id: uid(), cat: r[0], text: r[1], x: r[2], y: r[3], z: i + 1 }; });
+  }
+  function seedMap() {
+    var list = [], xi = 0;
+    function mk(text, parent, c) {
+      var n = { id: uid(), text: text, p: parent ? parent.id : null, x: ++xi * 10, y: 40, col: false };
+      if (c !== undefined) n.c = c;
+      list.push(n);
+      return n;
+    }
+    var root = mk('Example map: WS Lawn Care', null);
+    var maint = mk('Maintenance', root, 0);
+    mk('Update equipment hours', maint);
+    var fin = mk('Financial', root, 1);
+    var wave = mk('Wave', fin);
+    mk('Chart of accounts', wave);
+    mk('Pause till 2027', wave);
+    var tiller = mk('Tiller', fin);
+    mk('Reconcile sheet', tiller);
+    var ops = mk('Operations', root, 2);
+    mk('Training', ops);
+    mk('SOP', ops);
+    mk('Organization chart', ops);
+    return list;
+  }
+
+  function load() {
+    try {
+      var raw = localStorage.getItem(KEY);
+      if (raw) {
+        var d = JSON.parse(raw);
+        if (d && Array.isArray(d.notes)) {
+          return {
+            notes: d.notes.map(cleanNote).filter(Boolean),
+            nodes: Array.isArray(d.nodes) ? repairNodes(d.nodes.map(cleanNode).filter(Boolean)) : [],
+            fresh: false,
+            cats: d.cats && Array.isArray(d.cats) ? { cats: d.cats } : null,
+            synced: d.synced && typeof d.synced === 'object' ? d.synced : {},
+            lastSync: num(d.lastSync, 0),
+            url: typeof d.url === 'string' ? d.url : ''
+          };
+        }
+      }
+    } catch (e) { storageOK = false; }
+    // A shared board starts empty and fills from the server. A local one starts with examples.
+    return SYNC_ON
+      ? { notes: [], nodes: [], fresh: false, cats: null, synced: {}, lastSync: 0, url: '' }
+      : { notes: seedNotes(), nodes: seedMap(), fresh: true, cats: null, synced: {}, lastSync: 0, url: '' };
+  }
+
+  var state = load();
+  var fresh = state.fresh;
+  // What the server last told us about each item (id -> JSON). A different server means start over.
+  var synced = state.synced || {};
+  var lastSync = state.lastSync || 0;
+  if (SYNC_ON && state.url !== SYNC_URL) { synced = {}; lastSync = 0; }
+  if (state.cats) applyConfig(state.cats);
+  var zTop = state.notes.reduce(function (m, n) { return Math.max(m, n.z || 0); }, 0);
+
+  /* ---------- saving ---------- */
+  var saveT;
+  function save() {
+    clearTimeout(saveT);
+    saveT = setTimeout(flush, 250);
+    statusEl.textContent = 'Saving…';
+    if (SYNC_ON) schedulePush(1200);
+  }
+  function flush() {
+    try {
+      localStorage.setItem(KEY, JSON.stringify({
+        v: 3, notes: state.notes, nodes: state.nodes, cats: catData().cats,
+        synced: synced, lastSync: lastSync, url: SYNC_URL
+      }));
+      storageOK = true;
+      if (!SYNC_ON) statusEl.textContent = 'Saved on this device · ' + clock();
+    } catch (e) {
+      storageOK = false;
+      statusEl.textContent = 'This browser won’t save. Use Backup to keep a copy.';
+    }
+  }
+  window.addEventListener('pagehide', flush);
+  document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'hidden') flush(); });
+
+  /* ---------- toast ---------- */
+  var toastTimer;
+  function hideToast() { toastEl.hidden = true; }
+  function toast(msg, actLabel, act) {
+    toastEl.textContent = '';
+    var s = document.createElement('span');
+    s.textContent = msg;
+    toastEl.appendChild(s);
+    if (actLabel) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.textContent = actLabel;
+      b.addEventListener('click', function () { act(); hideToast(); });
+      toastEl.appendChild(b);
+    }
+    toastEl.hidden = false;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(hideToast, 6000);
+  }
+
+  function counts() {
+    CATS.forEach(function (c) {
+      chipBox.querySelector('[data-cat="' + c.id + '"] .cnt').textContent =
+        state.notes.filter(function (n) { return n.cat === c.id; }).length;
+    });
+    var t = state.notes.length, m = state.nodes.length;
+    totalEl.textContent = t + (t === 1 ? ' note' : ' notes') + ' · ' + m + (m === 1 ? ' topic' : ' topics');
+    emptyEl.hidden = !(loadedOnce && t + m === 0);
+  }
+  function clock() { return new Date().toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
+
+  /* =====================================================
+     Mind map
+     ===================================================== */
+  function byId(id) { return state.nodes.filter(function (n) { return n.id === id; })[0]; }
+  function kids(id) {
+    return state.nodes
+      .map(function (n, i) { return { n: n, i: i }; })
+      .filter(function (o) { return o.n.p === id; })
+      .sort(function (a, b) { return a.n.x - b.n.x || a.i - b.i; })
+      .map(function (o) { return o.n; });
+  }
+  function rootOf(n) {
+    var cur = n, guard = 0;
+    while (cur.p && guard++ < 500) { var p = byId(cur.p); if (!p) break; cur = p; }
+    return cur;
+  }
+  function subtreeAll(n) {
+    var out = [n];
+    kids(n.id).forEach(function (k) { out = out.concat(subtreeAll(k)); });
+    return out;
+  }
+  function isHidden(n) {
+    var p = n.p;
+    while (p) { var pn = byId(p); if (!pn) break; if (pn.col) return true; p = pn.p; }
+    return false;
+  }
+  function pickColor(rootId) {
+    var used = kids(rootId).map(function (k) { return k.c; }).filter(function (c) { return c !== undefined; });
+    for (var i = 0; i < BRANCH_COLORS; i++) if (used.indexOf(i) < 0) return i;
+    return kids(rootId).length % BRANCH_COLORS;
+  }
+  function colorOf(n) {
+    if (!n.p) return -1;
+    var t = n;
+    while (t.p) { var pp = byId(t.p); if (!pp || !pp.p) break; t = pp; }
+    if (t.c === undefined) t.c = pickColor(t.p);
+    return t.c;
+  }
+  function colorVar(n) { var c = colorOf(n); return c < 0 ? 'var(--brand)' : 'var(--b' + c + ')'; }
+
+  function paintNode(n) {
+    var el = nodeEls.get(n.id);
+    if (!el) return;
+    el.style.left = n.x + 'px';
+    el.style.top = n.y + 'px';
+    el.style.setProperty('--bc', colorVar(n));
+    el.classList.toggle('root', !n.p);
+    var hasKids = state.nodes.some(function (k) { return k.p === n.id; });
+    var fold = el.querySelector('.fold');
+    fold.hidden = !hasKids;
+    el.classList.toggle('isCollapsed', hasKids && n.col);
+    if (hasKids) {
+      fold.textContent = n.col ? '+' + (subtreeAll(n).length - 1) : '−';
+      fold.setAttribute('aria-label', n.col ? 'Show branches' : 'Hide branches');
+      fold.title = n.col ? 'Show branches' : 'Hide branches';
+    }
+    var ta = el.querySelector('.ntxt');
+    ta.placeholder = n.p ? 'Topic' : 'Central topic';
+    el.querySelector('.rep').textContent = (ta.value || ta.placeholder) + '​';
+  }
+
+  function syncVisibility() {
+    state.nodes.forEach(function (n) {
+      var el = nodeEls.get(n.id);
+      if (el) el.hidden = isHidden(n);
+    });
+  }
+
+  function drawLinks() {
+    state.nodes.forEach(function (n) {
+      var path = linkEls.get(n.id);
+      var par = n.p ? byId(n.p) : null;
+      var ne = nodeEls.get(n.id);
+      if (!par || !ne || ne.hidden) { if (path) path.style.display = 'none'; return; }
+      var pe = nodeEls.get(par.id);
+      if (!path) {
+        path = document.createElementNS(SVGNS, 'path');
+        linksSvg.appendChild(path);
+        linkEls.set(n.id, path);
+      }
+      var x1 = par.x + pe.offsetWidth / 2, y1 = par.y + pe.offsetHeight;
+      var x2 = n.x + ne.offsetWidth / 2, y2 = n.y;
+      var dy = Math.max(24, Math.abs(y2 - y1) * 0.5);
+      path.setAttribute('d', 'M' + x1 + ' ' + y1 + ' C' + x1 + ' ' + (y1 + dy) + ' ' + x2 + ' ' + (y2 - dy) + ' ' + x2 + ' ' + y2);
+      path.style.stroke = colorVar(n);
+      path.style.display = '';
+    });
+  }
+
+  /* Tidy top-down tree layout. Returns the tree's width. */
+  function layoutTree(rootId, leftOverride) {
+    var root = byId(rootId);
+    if (!root) return 0;
+    syncVisibility();
+    var rootEl = nodeEls.get(rootId);
+    var anchor = root.x + rootEl.offsetWidth / 2;
+    var widths = {}, depthH = [];
+    function sub(n, d) {
+      var el = nodeEls.get(n.id);
+      depthH[d] = Math.max(depthH[d] || 0, el.offsetHeight);
+      var total = 0;
+      (n.col ? [] : kids(n.id)).forEach(function (k) { total += sub(k, d + 1); });
+      widths[n.id] = Math.max(el.offsetWidth + HG, total);
+      return widths[n.id];
+    }
+    var W = sub(root, 0);
+    var left = leftOverride !== undefined ? leftOverride : Math.max(20, anchor - W / 2);
+    var ys = [root.y];
+    for (var i = 1; i < depthH.length; i++) ys[i] = ys[i - 1] + depthH[i - 1] + VG;
+    function place(n, l, d) {
+      var el = nodeEls.get(n.id), w = el.offsetWidth;
+      n.x = clamp(l + widths[n.id] / 2 - w / 2, 0, CANVAS_W - w);
+      n.y = clamp(ys[d], 0, CANVAS_H - 60);
+      var ks = n.col ? [] : kids(n.id);
+      var tot = 0;
+      ks.forEach(function (k) { tot += widths[k.id]; });
+      var cl = l + (widths[n.id] - tot) / 2;
+      ks.forEach(function (k) { place(k, cl, d + 1); cl += widths[k.id]; });
+    }
+    place(root, left, 0);
+    subtreeAll(root).forEach(paintNode);
+    drawLinks();
+    return W;
+  }
+  function layoutAll() {
+    syncVisibility();
+    var cursor = 40;
+    state.nodes.filter(function (n) { return !n.p; })
+      .sort(function (a, b) { return a.x - b.x; })
+      .forEach(function (r) { cursor += layoutTree(r.id, cursor) + 60; });
+  }
+  function relayoutAround(n) { if (n) layoutTree(rootOf(n).id); }
+
+  function startEdit(n) {
+    var el = nodeEls.get(n.id);
+    if (!el) return;
+    el.classList.add('editing');
+    var ta = el.querySelector('.ntxt');
+    ta.focus();
+    var l = ta.value.length;
+    try { ta.setSelectionRange(l, l); } catch (e) { /* ignore */ }
+    var r = el.getBoundingClientRect(), b = board.getBoundingClientRect();
+    if (r.bottom > b.bottom - 20) board.scrollTop += r.bottom - b.bottom + 60;
+    if (r.top < b.top + 10) board.scrollTop -= b.top - r.top + 40;
+    if (r.right > b.right - 20) board.scrollLeft += r.right - b.right + 60;
+    if (r.left < b.left + 10) board.scrollLeft -= b.left - r.left + 40;
+  }
+
+  function addNode(parentId) {
+    var par = byId(parentId);
+    if (!par) return;
+    var sib = kids(parentId);
+    var n = {
+      id: uid(), text: '', p: parentId, col: false,
+      x: sib.length ? sib[sib.length - 1].x + 1 : par.x,
+      y: par.y + 80
+    };
+    if (!par.p) n.c = pickColor(parentId);
+    par.col = false;
+    state.nodes.push(n);
+    maplayer.appendChild(makeNodeEl(n));
+    layoutTree(rootOf(n).id);
+    counts();
+    save();
+    startEdit(n);
+  }
+
+  function addRoot() {
+    var n = {
+      id: uid(), text: '', p: null, col: false,
+      x: clamp(board.scrollLeft + Math.max(40, (board.clientWidth - 180) / 2), 0, CANVAS_W - 200),
+      y: clamp(board.scrollTop + 60, 0, CANVAS_H - 80)
+    };
+    state.nodes.push(n);
+    maplayer.appendChild(makeNodeEl(n));
+    paintNode(n);
+    drawLinks();
+    counts();
+    save();
+    startEdit(n);
+  }
+
+  function destroyNodeEl(n) {
+    var el = nodeEls.get(n.id);
+    if (el) el.remove();
+    nodeEls.delete(n.id);
+    var path = linkEls.get(n.id);
+    if (path) path.remove();
+    linkEls.delete(n.id);
+  }
+
+  function removeNode(n, editParent) {
+    var gone = subtreeAll(n);
+    var parent = n.p ? byId(n.p) : null;
+    gone.forEach(function (g) {
+      destroyNodeEl(g);
+      state.nodes.splice(state.nodes.indexOf(g), 1);
+    });
+    if (parent) { layoutTree(rootOf(parent).id); }
+    else drawLinks();
+    counts();
+    save();
+    if (editParent && parent) startEdit(parent);
+    toast(gone.length > 1 ? 'Deleted ' + gone.length + ' topics' : 'Topic deleted', 'Undo', function () {
+      gone.forEach(function (g) {
+        state.nodes.push(g);
+        maplayer.appendChild(makeNodeEl(g));
+      });
+      var back = parent && byId(parent.id) ? parent : null;
+      if (!back) n.p = null;
+      repairNodes(state.nodes);
+      if (n.p) layoutTree(rootOf(n).id);
+      else { gone.forEach(paintNode); drawLinks(); }
+      counts();
+      save();
+    });
+  }
+
+  function reparent(n, target) {
+    var oldRoot = rootOf(n);
+    if (target.id === n.p) { layoutTree(rootOf(target).id); return; }
+    n.p = target.id;
+    target.col = false;
+    n.x = CANVAS_W;
+    if (!target.p) n.c = pickColor(target.id); else delete n.c;
+    layoutTree(rootOf(target).id);
+    if (oldRoot.id !== n.id && byId(oldRoot.id)) layoutTree(oldRoot.id);
+  }
+
+  function hintShow(on) { hintEl.hidden = !on; }
+
+  function makeNodeEl(n) {
+    var el = document.createElement('div');
+    el.className = 'node';
+    el.dataset.id = n.id;
+    el.tabIndex = 0;
+    el.setAttribute('role', 'group');
+    el.setAttribute('aria-label', 'Mind map topic');
+
+    var grow = document.createElement('div');
+    grow.className = 'grow';
+    var rep = document.createElement('span');
+    rep.className = 'rep';
+    rep.setAttribute('aria-hidden', 'true');
+    var ta = document.createElement('textarea');
+    ta.className = 'ntxt';
+    ta.rows = 1;
+    ta.maxLength = 200;
+    ta.spellcheck = true;
+    ta.setAttribute('aria-label', 'Topic text');
+    ta.value = n.text;
+    grow.appendChild(rep);
+    grow.appendChild(ta);
+    el.appendChild(grow);
+
+    function mkBtn(cls, label, text) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'nb ' + cls;
+      b.setAttribute('aria-label', label);
+      b.title = label;
+      b.textContent = text;
+      el.appendChild(b);
+      return b;
+    }
+    var addB = mkBtn('add', 'Add a branch', '+');
+    var foldB = mkBtn('fold', 'Hide branches', '−');
+    var rmB = mkBtn('rm', 'Delete topic and its branches', '×');
+
+    addB.addEventListener('click', function () { addNode(n.id); });
+    foldB.addEventListener('click', function () { n.col = !n.col; layoutTree(rootOf(n).id); save(); });
+    rmB.addEventListener('click', function () { removeNode(n, false); });
+
+    var lastW = 0;
+    ta.addEventListener('focus', function () { hintShow(true); lastW = el.offsetWidth; });
+    ta.addEventListener('blur', function () {
+      el.classList.remove('editing');
+      hintShow(false);
+    });
+    ta.addEventListener('input', function () {
+      if (/\n/.test(ta.value)) ta.value = ta.value.replace(/\s*\n\s*/g, ' ');
+      n.text = ta.value;
+      rep.textContent = (ta.value || ta.placeholder) + '​';
+      if (el.offsetWidth !== lastW) { lastW = el.offsetWidth; layoutTree(rootOf(n).id); }
+      else drawLinks();
+      save();
+    });
+    ta.addEventListener('keydown', function (e) {
+      if (e.isComposing) return;
+      if (e.key === 'Enter') { e.preventDefault(); addNode(n.p ? n.p : n.id); }
+      else if (e.key === 'Tab' && !e.shiftKey) { e.preventDefault(); addNode(n.id); }
+      else if (e.key === 'Escape') { el.focus(); }
+      else if (e.key === 'Backspace' && !ta.value && !state.nodes.some(function (k) { return k.p === n.id; })) {
+        e.preventDefault();
+        removeNode(n, true);
+      }
+    });
+    el.addEventListener('keydown', function (e) {
+      if (e.target !== el) return;
+      if (e.key === 'Enter' || e.key === 'F2') { e.preventDefault(); startEdit(n); }
+      else if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); removeNode(n, false); }
+      else if (e.key === 'Tab' && e.shiftKey) { /* default focus move */ }
+    });
+
+    /* Drag a topic with its branches. Drop it on another topic to move the branch there. */
+    el.addEventListener('pointerdown', function (e) {
+      if (e.target.closest('button')) return;
+      if (e.target === ta && el.classList.contains('editing')) return;
+      if (e.button !== undefined && e.button !== 0) return;
+      var sx = e.clientX, sy = e.clientY, sl = board.scrollLeft, st = board.scrollTop;
+      var moved = false, group = null, bb = null, dropT = null, ids = {};
+      try { el.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+
+      function begin() {
+        moved = true;
+        if (document.activeElement && document.activeElement.blur) document.activeElement.blur();
+        el.classList.add('lifting');
+        group = subtreeAll(n).map(function (g) { return { n: g, el: nodeEls.get(g.id), x: g.x, y: g.y }; });
+        group.forEach(function (g) { ids[g.n.id] = 1; });
+        bb = { minX: Infinity, maxX: 0, minY: Infinity, maxY: 0 };
+        group.forEach(function (g) {
+          bb.minX = Math.min(bb.minX, g.x); bb.maxX = Math.max(bb.maxX, g.x + g.el.offsetWidth);
+          bb.minY = Math.min(bb.minY, g.y); bb.maxY = Math.max(bb.maxY, g.y + g.el.offsetHeight);
+        });
+      }
+      function target(cx, cy) {
+        for (var i = 0; i < state.nodes.length; i++) {
+          var m = state.nodes[i];
+          if (ids[m.id]) continue;
+          var me = nodeEls.get(m.id);
+          if (!me || me.hidden) continue;
+          var r = me.getBoundingClientRect();
+          if (cx >= r.left && cx <= r.right && cy >= r.top && cy <= r.bottom) return m;
+        }
+        return null;
+      }
+      function setDrop(t) {
+        if (dropT === t) return;
+        if (dropT && nodeEls.get(dropT.id)) nodeEls.get(dropT.id).classList.remove('drop');
+        dropT = t;
+        if (t) nodeEls.get(t.id).classList.add('drop');
+      }
+      function move(ev) {
+        var dx = ev.clientX - sx, dy = ev.clientY - sy;
+        if (!moved) { if (Math.hypot(dx, dy) < 5) return; begin(); }
+        var r = board.getBoundingClientRect();
+        if (ev.clientX > r.right - 40) board.scrollLeft += 22;
+        else if (ev.clientX < r.left + 40) board.scrollLeft -= 22;
+        if (ev.clientY > r.bottom - 40) board.scrollTop += 22;
+        else if (ev.clientY < r.top + 40) board.scrollTop -= 22;
+        var ddx = clamp(dx + (board.scrollLeft - sl), -bb.minX, CANVAS_W - bb.maxX);
+        var ddy = clamp(dy + (board.scrollTop - st), -bb.minY, CANVAS_H - bb.maxY);
+        group.forEach(function (g) {
+          g.n.x = g.x + ddx; g.n.y = g.y + ddy;
+          g.el.style.left = g.n.x + 'px'; g.el.style.top = g.n.y + 'px';
+        });
+        drawLinks();
+        setDrop(target(ev.clientX, ev.clientY));
+      }
+      function up() {
+        el.removeEventListener('pointermove', move);
+        el.removeEventListener('pointerup', up);
+        el.removeEventListener('pointercancel', up);
+        if (!moved) { startEdit(n); return; }
+        el.classList.remove('lifting');
+        var t = dropT;
+        setDrop(null);
+        if (t) reparent(n, t);
+        else if (n.p) layoutTree(rootOf(n).id);
+        else drawLinks();
+        save();
+      }
+      el.addEventListener('pointermove', move);
+      el.addEventListener('pointerup', up);
+      el.addEventListener('pointercancel', up);
+    });
+
+    nodeEls.set(n.id, el);
+    return el;
+  }
+
+  /* =====================================================
+     Sticky notes
+     ===================================================== */
+  function paint(n, el) {
+    var c = catById(n.cat);
+    el.style.left = n.x + 'px';
+    el.style.top = n.y + 'px';
+    el.style.zIndex = n.z;
+    el.style.setProperty('--note', c.color);
+    el.style.setProperty('--rot', rot(n.id) + 'deg');
+    el.querySelector('.cat').textContent = c.label;
+    el.querySelectorAll('.colors button').forEach(function (b) {
+      b.setAttribute('aria-pressed', b.dataset.cat === n.cat ? 'true' : 'false');
+    });
+    el.classList.toggle('dim', filter.size > 0 && !filter.has(n.cat));
+  }
+
+  function repaintAll() {
+    state.notes.forEach(function (n) { var el = els.get(n.id); if (el) paint(n, el); });
+  }
+
+  function front(n, el) { n.z = ++zTop; el.style.zIndex = n.z; }
+
+  function makeNote(n) {
+    var el = document.createElement('article');
+    el.className = 'note';
+    el.dataset.id = n.id;
+
+    var grip = document.createElement('div');
+    grip.className = 'grip';
+    grip.tabIndex = 0;
+    grip.title = 'Drag to move (arrow keys work too)';
+    var lab = document.createElement('span');
+    lab.className = 'cat';
+    var del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'del';
+    del.setAttribute('aria-label', 'Delete note');
+    del.textContent = '×';
+    grip.appendChild(lab);
+    grip.appendChild(del);
+
+    var ta = document.createElement('textarea');
+    ta.className = 'txt';
+    ta.maxLength = 600;
+    ta.placeholder = 'Write here…';
+    ta.setAttribute('aria-label', 'Note text');
+    ta.value = n.text;
+
+    var colors = document.createElement('div');
+    colors.className = 'colors';
+    colors.setAttribute('role', 'group');
+    colors.setAttribute('aria-label', 'Note category');
+    CATS.forEach(function (c) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.style.background = c.color;
+      b.title = c.label;
+      b.setAttribute('aria-label', c.label);
+      b.dataset.cat = c.id;
+      b.addEventListener('click', function () { n.cat = c.id; paint(n, el); counts(); save(); });
+      colors.appendChild(b);
+    });
+
+    el.appendChild(grip);
+    el.appendChild(ta);
+    el.appendChild(colors);
+
+    ta.addEventListener('input', function () { n.text = ta.value; save(); });
+    ta.addEventListener('focus', function () { front(n, el); save(); });
+
+    del.addEventListener('pointerdown', function (e) { e.stopPropagation(); });
+    del.addEventListener('click', function () {
+      var i = state.notes.indexOf(n);
+      if (i < 0) return;
+      state.notes.splice(i, 1);
+      el.remove();
+      els.delete(n.id);
+      counts();
+      save();
+      toast('Note deleted', 'Undo', function () {
+        state.notes.splice(Math.min(i, state.notes.length), 0, n);
+        canvas.appendChild(makeNote(n));
+        counts();
+        save();
+      });
+    });
+
+    grip.addEventListener('pointerdown', function (e) {
+      if (e.target.closest('.del')) return;
+      if (e.button !== undefined && e.button !== 0) return;
+      e.preventDefault();
+      grip.setPointerCapture(e.pointerId);
+      front(n, el);
+      var sx = e.clientX, sy = e.clientY, ox = n.x, oy = n.y;
+      var sl = board.scrollLeft, st = board.scrollTop;
+      el.classList.add('lifting');
+      function move(ev) {
+        var r = board.getBoundingClientRect();
+        if (ev.clientX > r.right - 40) board.scrollLeft += 22;
+        else if (ev.clientX < r.left + 40) board.scrollLeft -= 22;
+        if (ev.clientY > r.bottom - 40) board.scrollTop += 22;
+        else if (ev.clientY < r.top + 40) board.scrollTop -= 22;
+        n.x = clamp(ox + (ev.clientX - sx) + (board.scrollLeft - sl), 0, CANVAS_W - NOTE_W);
+        n.y = clamp(oy + (ev.clientY - sy) + (board.scrollTop - st), 0, CANVAS_H - NOTE_H);
+        el.style.left = n.x + 'px';
+        el.style.top = n.y + 'px';
+      }
+      function up() {
+        grip.removeEventListener('pointermove', move);
+        grip.removeEventListener('pointerup', up);
+        grip.removeEventListener('pointercancel', up);
+        el.classList.remove('lifting');
+        save();
+      }
+      grip.addEventListener('pointermove', move);
+      grip.addEventListener('pointerup', up);
+      grip.addEventListener('pointercancel', up);
+    });
+
+    grip.addEventListener('keydown', function (e) {
+      if (e.target !== grip) return;
+      var d = { ArrowLeft: [-20, 0], ArrowRight: [20, 0], ArrowUp: [0, -20], ArrowDown: [0, 20] }[e.key];
+      if (!d) return;
+      e.preventDefault();
+      n.x = clamp(n.x + d[0], 0, CANVAS_W - NOTE_W);
+      n.y = clamp(n.y + d[1], 0, CANVAS_H - NOTE_H);
+      paint(n, el);
+      save();
+    });
+
+    els.set(n.id, el);
+    paint(n, el);
+    return el;
+  }
+
+  function freeSpot() {
+    var x0 = board.scrollLeft + 24, y0 = board.scrollTop + 24;
+    var sx = NOTE_W + 24, sy = NOTE_H + 24;
+    var cols = Math.max(1, Math.floor((board.clientWidth - 24) / sx));
+    var rows = Math.max(1, Math.floor((board.clientHeight - 24) / sy));
+    for (var r = 0; r < rows; r++) {
+      for (var c = 0; c < cols; c++) {
+        var cx = x0 + c * sx, cy = y0 + r * sy;
+        var taken = state.notes.some(function (n) { return Math.abs(n.x - cx) < 60 && Math.abs(n.y - cy) < 60; });
+        if (!taken) return { x: clamp(cx, 0, CANVAS_W - NOTE_W), y: clamp(cy, 0, CANVAS_H - NOTE_H) };
+      }
+    }
+    var j = (state.notes.length % 6) * 18;
+    return { x: clamp(x0 + j, 0, CANVAS_W - NOTE_W), y: clamp(y0 + j, 0, CANVAS_H - NOTE_H) };
+  }
+
+  function addNote(text, cat, pos) {
+    var p = pos ? { x: clamp(pos.x, 0, CANVAS_W - NOTE_W), y: clamp(pos.y, 0, CANVAS_H - NOTE_H) } : freeSpot();
+    var n = { id: uid(), text: text, cat: cat, x: p.x, y: p.y, z: ++zTop };
+    state.notes.push(n);
+    var el = makeNote(n);
+    el.classList.add('pop');
+    canvas.appendChild(el);
+    counts();
+    save();
+    return el;
+  }
+
+  /* ---------- toolbar ---------- */
+  function buildSwatches() {
+    CATS.forEach(function (c) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'sw';
+      b.style.background = c.color;
+      b.title = c.label;
+      b.dataset.cat = c.id;
+      b.setAttribute('aria-label', c.label + ' note');
+      b.addEventListener('click', function () { activeCat = c.id; markSw(); quickText.focus(); });
+      swatchBox.appendChild(b);
+    });
+    markSw();
+  }
+  function markSw() {
+    swatchBox.querySelectorAll('.sw').forEach(function (b) {
+      b.setAttribute('aria-pressed', b.dataset.cat === activeCat ? 'true' : 'false');
+    });
+    swatchName.textContent = catById(activeCat).label;
+  }
+
+  function buildChips() {
+    CATS.forEach(function (c) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'chip';
+      b.dataset.cat = c.id;
+      b.setAttribute('aria-pressed', 'false');
+      var d = document.createElement('i');
+      d.style.background = c.color;
+      var t = document.createElement('span');
+      t.textContent = c.label;
+      var k = document.createElement('b');
+      k.className = 'cnt';
+      b.appendChild(d); b.appendChild(t); b.appendChild(k);
+      b.addEventListener('click', function () {
+        if (filter.has(c.id)) filter.delete(c.id); else filter.add(c.id);
+        b.setAttribute('aria-pressed', filter.has(c.id) ? 'true' : 'false');
+        repaintAll();
+      });
+      chipBox.appendChild(b);
+    });
+  }
+
+  quick.addEventListener('submit', function (e) {
+    e.preventDefault();
+    var t = quickText.value.trim();
+    var el = addNote(t, activeCat);
+    quickText.value = '';
+    if (!t) el.querySelector('.txt').focus(); else quickText.focus();
+  });
+
+  // Double-click empty board space to drop a note right there.
+  canvas.addEventListener('dblclick', function (e) {
+    if (e.target !== canvas) return;
+    var r = canvas.getBoundingClientRect();
+    var el = addNote('', activeCat, { x: e.clientX - r.left - NOTE_W / 2, y: e.clientY - r.top - 20 });
+    el.querySelector('.txt').focus();
+  });
+
+  $('#mapBtn').addEventListener('click', addRoot);
+
+  $('#arrangeBtn').addEventListener('click', function () {
+    if (!state.nodes.length) { toast('No mind maps yet. Click New mind map to start one.'); return; }
+    layoutAll();
+    board.scrollTo({ left: 0, top: 0, behavior: 'smooth' });
+    save();
+    toast('Mind maps arranged');
+  });
+
+  $('#tidyBtn').addEventListener('click', function () {
+    var startY = 32;
+    if (state.nodes.length) {
+      var bottom = 0;
+      state.nodes.forEach(function (n) {
+        var el = nodeEls.get(n.id);
+        if (el && !el.hidden) bottom = Math.max(bottom, n.y + el.offsetHeight);
+      });
+      startY = bottom + 60;
+    }
+    var ci = 0;
+    CATS.forEach(function (c) {
+      var list = state.notes.filter(function (n) { return n.cat === c.id; })
+        .sort(function (a, b) { return a.y - b.y || a.x - b.x; });
+      if (!list.length) return;
+      list.forEach(function (n, r) {
+        n.x = clamp(32 + ci * (NOTE_W + 28), 0, CANVAS_W - NOTE_W);
+        n.y = clamp(startY + r * (NOTE_H + 24), 0, CANVAS_H - NOTE_H);
+        paint(n, els.get(n.id));
+      });
+      ci++;
+    });
+    canvas.classList.add('tidying');
+    setTimeout(function () { canvas.classList.remove('tidying'); }, 500);
+    board.scrollTo({ left: 0, top: Math.max(0, startY - 60), behavior: 'smooth' });
+    save();
+    toast('Notes grouped by category');
+  });
+
+  $('#copyBtn').addEventListener('click', function () {
+    var lines = [], count = 0;
+    var roots = state.nodes.filter(function (n) { return !n.p; }).sort(function (a, b) { return a.x - b.x; });
+    function walk(n, d) {
+      var t = n.text.trim() || '(empty topic)';
+      lines.push(new Array(d + 1).join('  ') + '- ' + t);
+      count++;
+      kids(n.id).forEach(function (k) { walk(k, d + 1); });
+    }
+    if (roots.length) {
+      lines.push('MIND MAP');
+      roots.forEach(function (r) { walk(r, 0); });
+      lines.push('');
+    }
+    CATS.forEach(function (c) {
+      var ns = state.notes.filter(function (n) { return n.cat === c.id && n.text.trim(); });
+      if (!ns.length) return;
+      lines.push(c.label.toUpperCase());
+      ns.forEach(function (n) { lines.push('- ' + n.text.trim().replace(/\s*\n+\s*/g, ' ')); count++; });
+      lines.push('');
+    });
+    var txt = lines.join('\n').trim();
+    if (!txt) { toast('Nothing to copy yet'); return; }
+    function fallback() {
+      var ta = document.createElement('textarea');
+      ta.value = txt;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      var ok = false;
+      try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+      ta.remove();
+      toast(ok ? 'Copied ' + count + ' items' : 'Couldn’t copy. Try the Backup button instead.');
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(txt).then(function () { toast('Copied ' + count + ' items'); }, fallback);
+    } else { fallback(); }
+  });
+
+  $('#exportBtn').addEventListener('click', function () {
+    var data = JSON.stringify({ app: 'ws-brainstorm-room', v: 3, cats: catData().cats, notes: state.notes, nodes: state.nodes }, null, 2);
+    var url = URL.createObjectURL(new Blob([data], { type: 'application/json' }));
+    var a = document.createElement('a');
+    var d = new Date();
+    var stamp = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+    a.href = url;
+    a.download = 'brainstorm-room-' + stamp + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1500);
+    toast('Backup file downloaded');
+  });
+
+  $('#importBtn').addEventListener('click', function () { fileIn.click(); });
+  fileIn.addEventListener('change', function () {
+    var f = fileIn.files[0];
+    if (!f) return;
+    var r = new FileReader();
+    r.onload = function () {
+      try {
+        var d = JSON.parse(r.result);
+        var arr = Array.isArray(d) ? d : d.notes;
+        var narr = !Array.isArray(d) && Array.isArray(d.nodes) ? d.nodes : [];
+        if (!Array.isArray(arr)) throw new Error('bad');
+        var k = 0, m = 0;
+        arr.forEach(function (raw) {
+          var n = cleanNote(raw);
+          if (!n) return;
+          n.id = uid();
+          n.z = ++zTop;
+          state.notes.push(n);
+          canvas.appendChild(makeNote(n));
+          k++;
+        });
+        var idmap = {}, added = [];
+        narr.forEach(function (raw) {
+          var n = cleanNode(raw);
+          if (!n) return;
+          idmap[n.id] = uid();
+          n._old = n.id;
+          added.push(n);
+        });
+        added.forEach(function (n) {
+          n.p = n.p && idmap[n.p] ? idmap[n.p] : null;
+          n.id = idmap[n._old];
+          delete n._old;
+        });
+        repairNodes(added);
+        added.forEach(function (n) {
+          state.nodes.push(n);
+          maplayer.appendChild(makeNodeEl(n));
+          m++;
+        });
+        if (m) layoutAll();
+        counts();
+        save();
+        toast('Added ' + k + ' notes and ' + m + ' topics from the backup');
+      } catch (e) {
+        toast('That file isn’t a Brainstorm Room backup');
+      }
+      fileIn.value = '';
+    };
+    r.readAsText(f);
+  });
+
+  var clearArm;
+  function disarm() {
+    clearTimeout(clearArm);
+    clearBtn.removeAttribute('data-armed');
+    clearBtn.textContent = 'Clear board';
+  }
+  clearBtn.addEventListener('click', function () {
+    if (!clearBtn.hasAttribute('data-armed')) {
+      clearBtn.setAttribute('data-armed', '1');
+      clearBtn.textContent = 'Click again to clear';
+      clearArm = setTimeout(disarm, 4000);
+      return;
+    }
+    disarm();
+    var oldNotes = state.notes.slice(), oldNodes = state.nodes.slice();
+    state.notes.forEach(function (n) { var el = els.get(n.id); if (el) el.remove(); });
+    els.clear();
+    oldNodes.forEach(destroyNodeEl);
+    state.notes = [];
+    state.nodes = [];
+    counts();
+    save();
+    toast(SYNC_ON ? 'Board cleared for everyone' : 'Board cleared', 'Undo', function () {
+      state.notes = oldNotes;
+      state.nodes = oldNodes;
+      oldNotes.forEach(function (n) { canvas.appendChild(makeNote(n)); });
+      oldNodes.forEach(function (n) { maplayer.appendChild(makeNodeEl(n)); });
+      syncVisibility();
+      oldNodes.forEach(paintNode);
+      drawLinks();
+      counts();
+      save();
+    });
+  });
+
+  /* ---------- editable categories ---------- */
+  function refreshCats() {
+    swatchBox.querySelectorAll('.sw').forEach(function (b) {
+      var c = catById(b.dataset.cat);
+      b.style.background = c.color;
+      b.title = c.label;
+      b.setAttribute('aria-label', c.label + ' note');
+    });
+    chipBox.querySelectorAll('.chip').forEach(function (b) {
+      var c = catById(b.dataset.cat);
+      b.querySelector('i').style.background = c.color;
+      b.querySelector('span').textContent = c.label;
+    });
+    els.forEach(function (el) {
+      el.querySelectorAll('.colors button').forEach(function (b) {
+        var c = catById(b.dataset.cat);
+        b.style.background = c.color;
+        b.title = c.label;
+        b.setAttribute('aria-label', c.label);
+      });
+    });
+    markSw();
+    repaintAll();
+  }
+  function catData() {
+    return { cats: CATS.map(function (c) { return { id: c.id, label: c.label, color: c.color }; }) };
+  }
+  function applyConfig(cfg) {
+    if (!cfg || !Array.isArray(cfg.cats)) return;
+    cfg.cats.forEach(function (x) {
+      var c = CATS.filter(function (k) { return x && k.id === x.id; })[0];
+      if (!c) return;
+      if (x.label && String(x.label).trim()) c.label = String(x.label).trim().slice(0, 18);
+      if (typeof x.color === 'string' && /^#[0-9a-fA-F]{6}$/.test(x.color)) c.color = x.color;
+    });
+    refreshCats();
+    if (editingCats && !catEditBox.contains(document.activeElement)) buildCatEdit();
+  }
+  function buildCatEdit() {
+    catEditBox.textContent = '';
+    CATS.forEach(function (c) {
+      var w = document.createElement('span');
+      w.className = 'catedit';
+      var col = document.createElement('input');
+      col.type = 'color';
+      col.value = c.color;
+      col.setAttribute('aria-label', 'Color for ' + c.label);
+      var t = document.createElement('input');
+      t.type = 'text';
+      t.maxLength = 18;
+      t.value = c.label;
+      t.setAttribute('aria-label', 'Name for the ' + c.label + ' category');
+      col.addEventListener('input', function () { c.color = col.value; refreshCats(); save(); });
+      t.addEventListener('input', function () {
+        var v = t.value.trim();
+        if (v) { c.label = v; refreshCats(); save(); }
+      });
+      t.addEventListener('blur', function () { if (!t.value.trim()) t.value = c.label; });
+      w.appendChild(col);
+      w.appendChild(t);
+      catEditBox.appendChild(w);
+    });
+  }
+  catEditBtn.addEventListener('click', function () {
+    editingCats = !editingCats;
+    if (editingCats) buildCatEdit();
+    chipBox.hidden = editingCats;
+    catEditBox.hidden = !editingCats;
+    catEditBtn.textContent = editingCats ? 'Done' : 'Edit labels';
+  });
+
+  /* ---------- shared board sync ----------
+     Every note, topic and the category names are stored one per row in a Google Sheet through an
+     Apps Script web app. The page sends only what changed and merges in what other devices changed,
+     so two people editing different things never overwrite each other. */
+  function noteData(n) { return { text: n.text, cat: n.cat, x: Math.round(n.x), y: Math.round(n.y), z: n.z }; }
+  function nodeData(n) {
+    var o = { text: n.text, p: n.p, x: Math.round(n.x), y: Math.round(n.y), col: !!n.col };
+    if (n.c !== undefined) o.c = n.c;
+    return o;
+  }
+  function withId(data, id) {
+    var o = {}, k;
+    for (k in data) if (Object.prototype.hasOwnProperty.call(data, k)) o[k] = data[k];
+    o.id = id;
+    return o;
+  }
+  function noteBy(id) { return state.notes.filter(function (n) { return n.id === id; })[0]; }
+  function collect() {
+    var m = {};
+    state.notes.forEach(function (n) { m[n.id] = { type: 'note', data: noteData(n) }; });
+    state.nodes.forEach(function (n) { m[n.id] = { type: 'node', data: nodeData(n) }; });
+    m.config = { type: 'config', data: catData() };
+    Object.keys(m).forEach(function (k) { m[k].json = JSON.stringify(m[k].data); });
+    return m;
+  }
+  function computeDiff() {
+    var cur = collect(), ups = [], dels = [], k;
+    Object.keys(cur).forEach(function (id) {
+      if (synced[id] !== cur[id].json) ups.push({ id: id, type: cur[id].type, data: cur[id].data, json: cur[id].json });
+    });
+    Object.keys(synced).forEach(function (id) { if (!cur[id]) dels.push({ id: id, del: 1 }); });
+    return { ups: ups, dels: dels };
+  }
+
+  function setStatus(t) { statusEl.textContent = t; }
+  function fetchJson(url, opts) {
+    var timer, timeout = new Promise(function (resolve, reject) {
+      timer = setTimeout(function () { reject(new Error('The shared board took too long to answer')); }, 25000);
+    });
+    var req = fetch(url, opts).then(function (r) {
+      if (!r.ok) throw new Error('The shared board answered with an error (' + r.status + ')');
+      return r.text();
+    }).then(function (txt) {
+      var j;
+      try { j = JSON.parse(txt); } catch (e) {
+        throw new Error('Not a sync response. Check the web app URL and that access is set to Anyone.');
+      }
+      if (!j.ok) throw new Error(j.error || 'The shared board refused the request');
+      return j;
+    });
+    return Promise.race([req, timeout]).then(function (j) { clearTimeout(timer); return j; }, function (e) { clearTimeout(timer); throw e; });
+  }
+  function getRemote(params) {
+    var url = SYNC_URL + '?key=' + encodeURIComponent(SYNC_KEY) + '&t=' + Date.now() + '&' + params;
+    return fetchJson(url, { method: 'GET' });
+  }
+  function postRemote(items) {
+    return fetchJson(SYNC_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ key: SYNC_KEY, action: 'save', since: Math.max(0, lastSync - 5000), items: items })
+    });
+  }
+
+  function removeNoteLocal(n) {
+    var i = state.notes.indexOf(n);
+    if (i >= 0) state.notes.splice(i, 1);
+    var el = els.get(n.id);
+    if (el) el.remove();
+    els.delete(n.id);
+  }
+  function removeNodeLocal(m) {
+    var i = state.nodes.indexOf(m);
+    if (i >= 0) state.nodes.splice(i, 1);
+    destroyNodeEl(m);
+  }
+
+  // Merge what the server has into the board. Anything edited here and not yet sent wins.
+  function applyBatch(items, full) {
+    var notesTouched = false, nodesTouched = false, serverIds = {};
+    items.forEach(function (it) {
+      var id = String(it.id);
+      if (!it.del) serverIds[id] = 1;
+      if (it.del) {
+        var dn = noteBy(id), dm = byId(id);
+        if (dn && (!(id in synced) || JSON.stringify(noteData(dn)) === synced[id])) { removeNoteLocal(dn); notesTouched = true; }
+        if (dm && (!(id in synced) || JSON.stringify(nodeData(dm)) === synced[id])) { removeNodeLocal(dm); nodesTouched = true; }
+        if (!dn && !dm) delete synced[id];
+        else if (!noteBy(id) && !byId(id)) delete synced[id];
+        return;
+      }
+      if (it.type === 'config') {
+        // Names edited here and not yet sent win; they go up on the next push.
+        if ('config' in synced && JSON.stringify(catData()) !== synced.config) { synced.config = '~stale'; return; }
+        applyConfig(it.data);
+        synced.config = JSON.stringify(catData());
+        return;
+      }
+      if (it.type === 'note') {
+        var obj = cleanNote(withId(it.data || {}, id));
+        var json = JSON.stringify(noteData(obj));
+        var n = noteBy(id);
+        if (n) {
+          var mine = JSON.stringify(noteData(n));
+          if (id in synced && mine !== synced[id]) { synced[id] = json; return; }
+          if (mine === json) { synced[id] = json; return; }
+          n.text = obj.text; n.cat = obj.cat; n.x = obj.x; n.y = obj.y; n.z = obj.z;
+          zTop = Math.max(zTop, obj.z);
+          var nel = els.get(id);
+          paint(n, nel);
+          var nta = nel.querySelector('.txt');
+          if (nta.value !== n.text) nta.value = n.text;
+        } else {
+          state.notes.push(obj);
+          zTop = Math.max(zTop, obj.z);
+          canvas.appendChild(makeNote(obj));
+        }
+        synced[id] = json;
+        notesTouched = true;
+      } else if (it.type === 'node') {
+        var nobj = cleanNode(withId(it.data || {}, id));
+        var njson = JSON.stringify(nodeData(nobj));
+        var m = byId(id);
+        if (m) {
+          var mmine = JSON.stringify(nodeData(m));
+          if (id in synced && mmine !== synced[id]) { synced[id] = njson; return; }
+          if (mmine === njson) { synced[id] = njson; return; }
+          m.text = nobj.text; m.p = nobj.p; m.x = nobj.x; m.y = nobj.y; m.col = nobj.col;
+          if (nobj.c !== undefined) m.c = nobj.c; else delete m.c;
+          var mel = nodeEls.get(id);
+          var mta = mel.querySelector('.ntxt');
+          if (mta.value !== m.text) mta.value = m.text;
+        } else {
+          state.nodes.push(nobj);
+          maplayer.appendChild(makeNodeEl(nobj));
+        }
+        synced[id] = njson;
+        nodesTouched = true;
+      }
+    });
+    if (full) {
+      // On a full load, anything we knew was on the server but is gone now was deleted by someone else.
+      state.notes.slice().forEach(function (n) {
+        if (!serverIds[n.id] && (n.id in synced)) {
+          if (JSON.stringify(noteData(n)) === synced[n.id]) { removeNoteLocal(n); notesTouched = true; }
+          delete synced[n.id];
+        }
+      });
+      state.nodes.slice().forEach(function (m) {
+        if (!serverIds[m.id] && (m.id in synced)) {
+          if (JSON.stringify(nodeData(m)) === synced[m.id]) { removeNodeLocal(m); nodesTouched = true; }
+          delete synced[m.id];
+        }
+      });
+    }
+    if (nodesTouched) {
+      syncVisibility();
+      state.nodes.forEach(paintNode);
+      drawLinks();
+    }
+    if (notesTouched || nodesTouched) counts();
+  }
+
+  function schedulePush(ms) {
+    clearTimeout(syncT);
+    syncT = setTimeout(function () { syncNow(false); }, ms);
+  }
+
+  function syncNow(full) {
+    if (!SYNC_ON) return;
+    if (inflight) { again = true; return; }
+    inflight = true;
+    clearTimeout(syncT);
+    setStatus('Syncing…');
+    var diff = full ? { ups: [], dels: [] } : computeDiff();
+    var req;
+    if (diff.ups.length || diff.dels.length) {
+      var items = diff.ups.map(function (u) { return { id: u.id, type: u.type, data: u.data, del: 0 }; })
+        .concat(diff.dels);
+      req = postRemote(items).then(function (res) {
+        diff.ups.forEach(function (u) { synced[u.id] = u.json; });
+        diff.dels.forEach(function (d) { delete synced[d.id]; });
+        return res;
+      });
+    } else {
+      req = getRemote(full ? 'action=load' : 'action=sync&since=' + Math.max(0, lastSync - 5000));
+    }
+    req.then(function (res) {
+      applyBatch(res.items || [], full);
+      lastSync = res.now || lastSync;
+      loadedOnce = true;
+      counts();
+      setStatus('Shared · synced ' + clock());
+      flush();
+      if (full) schedulePush(200);
+    }).catch(function (err) {
+      loadedOnce = true;
+      counts();
+      setStatus('Not synced: ' + String(err && err.message ? err.message : 'offline').replace(/\.$/, '') + '. Changes are kept on this device.');
+      schedulePush(20000);
+    }).then(function () {
+      inflight = false;
+      if (again) { again = false; schedulePush(300); }
+    });
+  }
+
+  /* ---------- start ---------- */
+  buildSwatches();
+  buildChips();
+  state.nodes.forEach(function (n) { maplayer.appendChild(makeNodeEl(n)); });
+  state.notes.forEach(function (n) { canvas.appendChild(makeNote(n)); });
+  syncVisibility();
+  if (fresh) layoutAll();
+  else { state.nodes.forEach(paintNode); drawLinks(); }
+  counts();
+  if (storageOK) flush();
+  else statusEl.textContent = 'This browser won’t save. Use Backup to keep a copy.';
+  // Web fonts change text widths, so re-measure once they arrive.
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () {
+      if (fresh) { layoutAll(); save(); }
+      else { state.nodes.forEach(paintNode); drawLinks(); }
+    });
+  }
+  if (SYNC_ON) {
+    syncBtn.hidden = false;
+    syncBtn.addEventListener('click', function () { syncNow(false); });
+    setStatus('Connecting to the shared board…');
+    syncNow(true);
+    setInterval(function () {
+      if (document.visibilityState === 'visible' && !inflight) syncNow(false);
+    }, POLL_MS);
+    window.addEventListener('online', function () { syncNow(false); });
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') { syncNow(false); return; }
+      // Leaving the page: send anything still waiting so it is not lost.
+      if (inflight) return;
+      var d = computeDiff();
+      if (!d.ups.length && !d.dels.length) return;
+      var items = d.ups.map(function (u) { return { id: u.id, type: u.type, data: u.data, del: 0 }; }).concat(d.dels);
+      try {
+        fetch(SYNC_URL, {
+          method: 'POST', keepalive: true,
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ key: SYNC_KEY, action: 'save', since: Date.now() + 60000, items: items })
+        }).catch(function () { /* the next visit sends it again */ });
+      } catch (e) { /* ignore */ }
+    });
+  }
+})();
+</script>
+</body>
+</html>
